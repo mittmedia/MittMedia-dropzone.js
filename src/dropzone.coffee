@@ -314,6 +314,9 @@ class Dropzone extends Emitter
     # be ignored.
     dictFallbackText: "Please use the fallback form below to upload your files like in the olden days."
 
+    # The Text that will be added when user is on android Kitkat or below
+    dictAndroidFallbackText: "please try again on another device"
+
     # If the filesize is too big.
     # `{{filesize}}` and `{{maxFilesize}}` will be replaced with the respective configuration values.
     dictFileTooBig: "File is too big ({{filesize}}MiB). Max filesize: {{maxFilesize}}MiB."
@@ -373,6 +376,7 @@ class Dropzone extends Emitter
           continue
       unless messageElement
         messageElement = Dropzone.createElement """<div class="dz-message"><span></span></div>"""
+
         @element.appendChild messageElement
 
       span = messageElement.getElementsByTagName("span")[0]
@@ -899,11 +903,15 @@ class Dropzone extends Emitter
     return file.name unless typeof @options.renameFile is "function"
     @options.renameFile file
 
-  # Returns a form that can be used as fallback if the browser does not support DragnDrop
+  # Returns a form that can be used as fallback if the browser does not support DragnDrp
   #
   # If the dropzone is already a form, only the input field and button are returned. Otherwise a complete form element is provided.
   # This code has to pass in IE7 :(
   getFallbackForm: ->
+    # Show android error when using kitkat or below
+    androidVersion = Dropzone.getAndroidVersion()
+    return Dropzone.getAndroidKitkatFallback(@options.dictAndroidFallbackText) if androidVersion && parseInt(androidVersion) < 5
+
     return existingFallback if existingFallback = @getExistingFallback()
 
     fieldsString = """<div class="dz-fallback">"""
@@ -919,7 +927,6 @@ class Dropzone extends Emitter
       @element.setAttribute "enctype", "multipart/form-data"
       @element.setAttribute "method", @options.method
     form ? fields
-
 
   # Returns the fallback elements if they exist already
   #
@@ -1554,12 +1561,29 @@ Dropzone.blacklistedBrowsers = [
   # /MSIE\ 10/i
 ]
 
+Dropzone.getAndroidVersion = ->
+  ua = navigator.userAgent.toLowerCase()
+  match = ua.match(/android\s([0-9\.]*)/)
+  if match then return match[1] else return false
+
+Dropzone.isAndroidBrowserSupported = ->
+  androidVersion = Dropzone.getAndroidVersion()
+  # Return true when the browser is not android
+  return true if !androidVersion
+  # If android version is higher than KitKat, as kitkat and below don't
+  # support multi-file upload
+  return parseInt(androidVersion) > 4
+
+Dropzone.getAndroidKitkatFallback = (androidFallbackText) ->
+  fieldsString = """<div class="dz-fallback">"""
+  fieldsString += """<p>#{androidFallbackText}</p></div>"""
+  Dropzone.createElement fieldsString
 
 # Checks if the browser is supported
 Dropzone.isBrowserSupported = ->
   capableBrowser = yes
 
-  if window.File and window.FileReader and window.FileList and window.Blob and window.FormData and document.querySelector
+  if window.File and window.FileReader and window.FileList and window.Blob and window.FormData and document.querySelector and Dropzone.isAndroidBrowserSupported()
     unless "classList" of document.createElement "a"
       capableBrowser = no
     else
